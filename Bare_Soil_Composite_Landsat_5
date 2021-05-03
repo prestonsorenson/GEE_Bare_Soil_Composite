@@ -56,9 +56,9 @@ var addNDWI = function(image) {
 return image.addBands(image.normalizedDifference(['B2', 'B4']).rename('ndwi'));
 };
 
-// Function to calculate and add an NDI7 band
-var addNDI7 = function(image) {
-return image.addBands(image.normalizedDifference(['B4', 'B7']).rename('NDI7'));
+// Function to calculate and add an NDTI band
+var addNDTI = function(image) {
+return image.addBands(image.normalizedDifference(['B4', 'B7']).rename('NDTI'));
 };
 
 // Function to calculate and add an NBR2 band
@@ -68,7 +68,7 @@ return image.addBands(image.normalizedDifference(['B5', 'B7']).rename('nbr'));
 
 var collection = collection.map(addNDVI);
 var collection = collection.map(addNDWI);
-var collection = collection.map(addNDI7);
+var collection = collection.map(addNDTI);
 var collection = collection.map(addNBR);
 
 //option to add additional filter to make sure there is vegetation at somepoint on that pixel
@@ -91,11 +91,11 @@ var ndwiThres = function(image) {
   return image.addBands(thres);
 };
 
-//function to calculate NDI7 values
-var NDI7Thres = function(image) {
+//function to calculate NDTI values
+var NDTIThres = function(image) {
   // THRESHOLD
   // if nbr less or equal to 0.9 => 1 else 0
-  var thres = image.select(['NDI7']).lte(0).rename('NDI7_thres');
+  var thres = image.select(['NDTI']).lte(0).rename('NDTI_thres');
   return image.addBands(thres);
 };
 
@@ -110,7 +110,7 @@ var nbrThres = function(image) {
 //add four band ratios
 var collection = collection.map(ndviThres);
 var collection = collection.map(ndwiThres);
-var collection = collection.map(NDI7Thres);
+var collection = collection.map(NDTIThres);
 var collection = collection.map(nbrThres);
 
 //mask by ndvi values
@@ -125,9 +125,9 @@ return image.mask(image.select('ndwi_thres'));
 };
 var collection = collection.map(mask2);
 
-//mask by NDI7 values
+//mask by NDTI values
 var mask3 = function (image){
-return image.mask(image.select('NDI7_thres'));
+return image.mask(image.select('NDTI_thres'));
 };
 var collection = collection.map(mask3);
 
@@ -177,10 +177,10 @@ Map.addLayer(median, rgbVis, 'RGB');
 // Export the image, specifying scale and region.
 Export.image.toDrive({
 image: median, //replace with your image name variable
-description: 'sk_ls5_bare_soil_NDI7_ndvi3_NDI70_nbr1_focal3',
+description: 'sk_ls5_bare_soil_NDTI_ndvi3_NDTI0_nbr1_focal3',
 scale: 100,
 maxPixels: 1e12,
 region: polygon, //polygon name that you have drawn at step 1
-folder:'sk_ls5_bare_soil_ndvi3_NDI70_nbr1_focal3',
+folder:'sk_ls5_bare_soil_ndvi3_NDTI_nbr1_focal3',
 crs: "EPSG:26913"
 });
