@@ -87,7 +87,7 @@ var ndviThres = function(image) {
 var ndwiThres = function(image) {
   // THRESHOLD
   // if nbr less or equal to 0.1 => 1 else 0
-  var thres = image.select(['ndwi']).lte(0.8).rename('ndwi_thres');
+  var thres = image.select(['ndwi']).lte(0.5).rename('ndwi_thres');
   return image.addBands(thres);
 };
 
