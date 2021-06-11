@@ -1,15 +1,10 @@
-#https://medium.com/applied-data-science/new-r-package-the-xgboost-explainer-51dd7d1aa211
 library(ranger)
 library(prospectr)
-library(brnn)
-library(earth)
-library(Cubist)
-library(xgboost)
 library(Metrics)
 library(ggplot2)
 library(raster)
 library(svMisc)
-
+library(DescTools)
 
 normalize <- function(x) {
   return ((x - min(na.omit(x))) / (max(na.omit(x)) - min(na.omit(x))))
@@ -17,64 +12,75 @@ normalize <- function(x) {
 
 setwd('/home/preston/OneDrive/Graduate Studies/Post_Doc/Shared/Data/Sask_Soil_Data')
 
-#dat=read.csv("bare_soil_training_25Jan2021_PS.csv")
-#dat_test_focal3=read.csv("bare_soil_training_focal3_26Jan2021_PS.csv")
 dat=read.csv("bare_soil_training_focal10_26Jan2021_PS.csv")
 dat=dat[!is.na(dat$b1),]
 dat=dat[dat$b1!=0,]
 dat=dat[dat$b1<5000,]
-dat=dat[!is.na(dat$EXCH_CA),]
+dat=dat[dat$CARB_ORG<10,]
 
-dat=dat[dat$EXCH_CA<80,]
+boxplot(dat$CARB_ORG)
 
 #train-test split
+#original splits
+#splits=kenStone(dat[,22:28], k=round(nrow(dat)*0.75), metric = 'mahal')
+
+#dat_train=dat[splits$model,]
+#dat_test=dat[splits$test,]
+#load original splitting to keep same for all variables
 train_index=read.csv('/home/preston/OneDrive/Papers/Historic_Carbon_Map/Analysis/train_index.csv')
 test_index=read.csv('/home/preston/OneDrive/Papers/Historic_Carbon_Map/Analysis/test_index.csv')
 
-dat_train=dat[dat$X %in% train_index$x,]
+`%notin%` <- Negate(`%in%`)
+
+dat_train=dat[dat$X %notin% test_index$x,]
 dat_test=dat[dat$X %in% test_index$x,]
 
 #feature exploration
-dat_sub=dat_train[,c(5, 22:28)]
+dat_sub=dat_train[,c(3, 22:28)]
 cor(dat_sub)
 
-plot(dat_sub$EXCH_CA~dat_sub$b1)
-plot(dat_sub$EXCH_CA~dat_sub$b2)
-plot(dat_sub$EXCH_CA~dat_sub$b3)
-plot(dat_sub$EXCH_CA~dat_sub$b4)
-plot(dat_sub$EXCH_CA~dat_sub$b5)
-plot(dat_sub$EXCH_CA~dat_sub$b6)
-plot(dat_sub$EXCH_CA~dat_sub$b7)
+dat_sub=dat_test[,c(3, 22:28)]
+cor(dat_sub)
+
+plot(dat_sub$CARB_ORG~dat_sub$b1)
+plot(dat_sub$CARB_ORG~dat_sub$b2)
+plot(dat_sub$CARB_ORG~dat_sub$b3)
+plot(dat_sub$CARB_ORG~dat_sub$b4)
+plot(dat_sub$CARB_ORG~dat_sub$b5)
+plot(dat_sub$CARB_ORG~dat_sub$b6)
+plot(dat_sub$CARB_ORG~dat_sub$b7)
 
 #model building
 #ranger
-model_val=ranger(EXCH_CA~b1+b2+b3+b4+b5+b6+b7, dat=dat_train, importance='impurity', quantreg = TRUE)
-pred=predict(model_val, data=dat_test, type='quantiles', quantiles=c(0.25, 0.5, 0.75))
-pred=predict(model_val, data=dat_test)
+model=ranger(CARB_ORG~b1+b2+b3+b4+b5+b7, dat=dat_train, importance='impurity', quantreg = TRUE)
+pred=predict(model, data=dat_test, type='quantiles', quantiles=c(0.25, 0.5, 0.75))
+pred=predict(model, data=dat_test)
 pred=pred$predictions
-sort(importance(model_val))
+sort(importance(model))
 
 boxplot(pred)
-boxplot(dat_test$EXCH_CA)
+boxplot(dat_test$CARB_ORG)
 
-plot(pred~dat_test$EXCH_CA, asp=1)
+plot(pred~dat_test$CARB_ORG, asp=1)
 abline(0,1)
 
-cor.test(pred, dat_test$EXCH_CA)
-summary(lm(pred~dat_test$EXCH_CA))
-rmse(dat_test$EXCH_CA, pred)
-sd(dat_test$EXCH_CA)/rmse(dat_test$EXCH_CA, pred)
+cor.test(pred, dat_test$CARB_ORG)
+summary(lm(pred~dat_test$CARB_ORG))
+rmse(dat_test$CARB_ORG, pred)
+sd(dat_test$CARB_ORG)/rmse(dat_test$CARB_ORG, pred)
+CCC(dat_test$CARB_ORG, pred)
+bias(dat_test$CARB_ORG, pred)
+
 
 #create plot
-plot_data=data.frame(dat_test$EXCH_CA, pred)
+plot_data=data.frame(dat_test$CARB_ORG, pred)
 colnames(plot_data)=c("actual", 'predicted')
-EXCH_CA_plot=ggplot(plot_data, (aes(x=actual, y=predicted))) + geom_point() + xlim(0, 80) + ylim(0, 80) + geom_abline() + xlab("Actual Exchangeable Calcium") + ylab("Predicted Exchangeable Calcium")
-EXCH_CA_plot = EXCH_CA_plot + annotate("text", x=0, y = 80, label=expression(paste("R"^"2 ", "= 0.48"))) + annotate("text", x=0, y = 80, label=expression(paste("RMSE = 8.6 MEQ 100g"^""-1")))
-
-EXCH_CA_plot
+carbon_plot=ggplot(plot_data, (aes(x=actual, y=predicted))) + geom_point() + xlim(0.5, 6) + ylim(0.5, 6) + geom_abline() + xlab("Actual Soil Organic Carbon (%)") + ylab("Predicted Soil Organic Carbon (%)")
+carbon_plot = carbon_plot + annotate("text", x=1, y = 5.5, label=expression(paste("R"^"2 ", "= 0.55"))) + annotate("text", x=1, y=5.2, label="RMSE = 0.67%") + annotate("text", x=1, y=4.9, label=expression(paste(rho['c'], "= 0.71"))) + annotate("text", x=1, y=4.6, label='Bias = 0.04')
+carbon_plot
 
 #predict results
-model=ranger(EXCH_CA~b1+b2+b3+b4+b5+b6+b7, dat=dat, importance='impurity', quantreg = TRUE)
+model=ranger(CARB_ORG~b1+b2+b3+b4+b5+b7, dat=dat, importance='impurity', quantreg = TRUE)
 sort(importance(model))
 
 raster_stack=stack('/media/preston/My Book/Saskatchewan/sk_bare_soil/sk_ls5_bare_soil_ndvi3_ndsi0_nbr1_focal10_filt/sk_ls5_bare_soil_ndsi_ndvi3_ndsi0_nbr1_focal10.tif')
@@ -138,6 +144,6 @@ pred_stack=stack(pred_results_25, pred_results_50, pred_results_75, pred_results
 
 names(pred_stack)=c("pred_results_25","pred_results_50","pred_results_75","pred_results_iqr","pred_results_iqr_ratio")
 
-writeRaster(pred_stack, '/home/preston/OneDrive/Papers/Historic_Carbon_Map/Analysis/sk_predicted_clay.tif', format="GTiff", overwrite=TRUE)
+writeRaster(pred_stack, '/home/preston/OneDrive/Papers/Historic_Carbon_Map/Analysis/sk_predicted_carbon.tif', format="GTiff", overwrite=TRUE)
 
 
