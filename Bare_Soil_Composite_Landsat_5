@@ -115,25 +115,25 @@ var collection = collection.map(nbrThres);
 
 //mask by ndvi values
 var mask1 = function (image){
-return image.mask(image.select('ndvi_thres'));
+return image.updateMask(image.select('ndvi_thres'));
 };
 var collection = collection.map(mask1);
 
 //mask by ndwi values
 var mask2 = function (image){
-return image.mask(image.select('ndwi_thres'));
+return image.updateMask(image.select('ndwi_thres'));
 };
 var collection = collection.map(mask2);
 
 //mask by NDI7 values
 var mask3 = function (image){
-return image.mask(image.select('NDI7_thres'));
+return image.updateMask(image.select('NDI7_thres'));
 };
 var collection = collection.map(mask3);
 
 //mask by nbr values
 var mask4 = function (image){
-return image.mask(image.select('nbr_thres'));
+return image.updateMask(image.select('nbr_thres'));
 };
 var collection = collection.map(mask4);
 
