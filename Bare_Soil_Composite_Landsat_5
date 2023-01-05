@@ -15,7 +15,7 @@ var polygon = ee.Geometry.Polygon({
  * @return {ee.Image} Cloudmasked Landsat image
  */
 var cloudMaskL457 = function(image) {
-  var qa = image.select('pixel_qa');
+  var qa = image.select('QA_PIXEL');
   // If the cloud bit (5) is set and the cloud confidence (7) is high
   // or the cloud shadow bit is set (3), then it's a bad pixel.
   var cloud = qa.bitwiseAnd(1 << 5)
@@ -30,7 +30,7 @@ var cloudMaskL457 = function(image) {
 // the bounds of the FeatureCollection.
 
 var collection = 
-    ee.ImageCollection('LANDSAT/LT05/C01/T1_SR')
+    ee.ImageCollection('LANDSAT/LT05/C02/T1_L2')
     .filter(ee.Filter.calendarRange(1984,1995,'year'))
     .filter(ee.Filter.calendarRange(7,8,'month'))
     .filterBounds(polygon)
@@ -48,22 +48,22 @@ print(collection);
 
 // Function to calculate and add an NDVI band
 var addNDVI = function(image) {
-return image.addBands(image.normalizedDifference(['B4', 'B3']).rename('ndvi'));
+return image.addBands(image.normalizedDifference(['SR_B4', 'SR_B3']).rename('ndvi'));
 };
 
 // Function to calculate and add an NDWI band
 var addNDWI = function(image) {
-return image.addBands(image.normalizedDifference(['B2', 'B4']).rename('ndwi'));
+return image.addBands(image.normalizedDifference(['SR_B2', 'SR_B4']).rename('ndwi'));
 };
 
 // Function to calculate and add an NDI7 band
 var addNDI7 = function(image) {
-return image.addBands(image.normalizedDifference(['B4', 'B7']).rename('NDI7'));
+return image.addBands(image.normalizedDifference(['SR_B4', 'SR_B7']).rename('NDI7'));
 };
 
 // Function to calculate and add an NBR2 band
 var addNBR = function(image) {
-return image.addBands(image.normalizedDifference(['B5', 'B7']).rename('nbr'));
+return image.addBands(image.normalizedDifference(['SR_B5', 'SR_B7']).rename('nbr'));
 };
 
 var collection = collection.map(addNDVI);
@@ -167,7 +167,7 @@ print(median);
 var rgbVis = {
   min: 0,
   max: 3000,
-  bands: ['B3', 'B2', 'B1'],
+  bands: ['SR_B3', 'SR_B2', 'SR_B1'],
 };
 
 //display results
