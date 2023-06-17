@@ -1,0 +1,186 @@
+//Modified method based on Dematte et al. (2018) doi: 10.1016/j.rse.2018.04.047
+// Bare Soil Occurance Counts
+// Moving Average over 5 year period
+//Combined Landsat 5 and Landat 7: 1984 to 2022
+
+//set dates
+var start = '1984-01-01';
+var endDate = ee.Date('2022-12-31');
+
+// Filter to only include images within a defined area.
+var polygon = ee.Geometry.Polygon({
+  coords: [[[-101.40, 49.50], [-101.40, 50.50], [-102.50, 50.50], [-102.50, 49.50]
+  ]],
+  geodesic: false
+});
+
+//Cloud Mask
+/**
+ * Function to mask clouds based on the pixel_qa band of Landsat SR data.
+ * @param {ee.Image} image Input Landsat SR image
+ * @return {ee.Image} Cloudmasked Landsat image
+ */
+//Cloud Mask
+/**
+ * Function to mask clouds based on the pixel_qa band of Landsat SR data.
+ * @param {ee.Image} image Input Landsat SR image
+ * @return {ee.Image} Cloudmasked Landsat image
+ */
+var cloudMaskL457 = function(image) {
+  var qa = image.select('QA_PIXEL');
+  // If the cloud bit (5) is set and the cloud confidence (7) is high
+  // or the cloud shadow bit is set (3), then it's a bad pixel.
+  var cloud = qa.bitwiseAnd(1 << 5)
+                  .and(qa.bitwiseAnd(1 << 7))
+                  .or(qa.bitwiseAnd(1 << 3));
+  // Remove edge pixels that don't occur in all bands
+  var mask2 = image.mask().reduce(ee.Reducer.min());
+  return image.updateMask(cloud.not()).updateMask(mask2);
+};
+
+// Create a Landsat 5 composites filter by
+// the bounds of the FeatureCollection.
+
+var collection = 
+    ee.ImageCollection('LANDSAT/LT05/C02/T1_L2')
+    .filter(ee.Filter.calendarRange(5,10,'month'))
+    .filterBounds(polygon)
+    .map(cloudMaskL457);
+
+// Create a Landsat 7 composites filter by
+// the bounds of the FeatureCollection.
+
+var collection_l7 = 
+    ee.ImageCollection('LANDSAT/LE07/C02/T1_L2')
+    .filter(ee.Filter.calendarRange(5,10,'month'))
+    .filterBounds(polygon)
+    .map(cloudMaskL457);
+
+// Function to calculate and add an NDVI band
+var addNDVI = function(image) {
+return image.addBands(image.normalizedDifference(['SR_B4', 'SR_B3']).rename('ndvi'));
+};
+
+// Function to calculate and add an NDWI band
+var addNDWI = function(image) {
+return image.addBands(image.normalizedDifference(['SR_B2', 'SR_B4']).rename('ndwi'));
+};
+
+// Function to calculate and add an NDI7 band
+var addNDI7 = function(image) {
+return image.addBands(image.normalizedDifference(['SR_B4', 'SR_B7']).rename('NDI7'));
+};
+
+// Function to calculate and add an NBR2 band
+var addNBR = function(image) {
+return image.addBands(image.normalizedDifference(['SR_B5', 'SR_B7']).rename('nbr'));
+};
+
+var collection = collection.map(addNDVI);
+var collection = collection.map(addNDWI);
+var collection = collection.map(addNDI7);
+var collection = collection.map(addNBR);
+
+var collection_l7 = collection_l7.map(addNDVI);
+var collection_l7 = collection_l7.map(addNDWI);
+var collection_l7 = collection_l7.map(addNDI7);
+var collection_l7 = collection_l7.map(addNBR);
+
+var collection = collection.select(['ndvi', 'ndwi', 'NDI7','nbr']);
+var collection_l7 = collection_l7.select(['ndvi', 'ndwi', 'NDI7','nbr']);
+
+//merge l5 and l7
+var collection=collection.merge(collection_l7);
+
+print(collection);
+
+//fuction to calculate ndvi values
+var ndviThres = function(image) {
+  // THRESHOLD
+  // if NDVI less or equal to 0.3 => 1 else 0
+  var thres = image.select(['ndvi']).lte(0.3).rename('ndvi_thres');
+  return image.addBands(thres);
+};
+
+//function to calculate ndwi values
+var ndwiThres = function(image) {
+  // THRESHOLD
+  // if nbr less or equal to 0.1 => 1 else 0
+  var thres = image.select(['ndwi']).lte(0.5).rename('ndwi_thres');
+  return image.addBands(thres);
+};
+
+//function to calculate NDI7 values
+var NDI7Thres = function(image) {
+  // THRESHOLD
+  // if nbr less or equal to 0.9 => 1 else 0
+  var thres = image.select(['NDI7']).lte(0).rename('NDI7_thres');
+  return image.addBands(thres);
+};
+
+//function to calculate nbr values
+var nbrThres = function(image) {
+  // THRESHOLD
+  // if nbr less or equal to 0.9 => 1 else 0
+  var thres = image.select(['nbr']).lte(0.1).rename('nbr_thres');
+  return image.addBands(thres);
+};
+
+//add four band ratios
+var collection = collection.map(ndviThres);
+var collection = collection.map(ndwiThres);
+var collection = collection.map(NDI7Thres);
+var collection = collection.map(nbrThres);
+
+//mask by ndvi values
+var mask1 = function (image){
+return image.updateMask(image.select('ndvi_thres'));
+};
+var collection = collection.map(mask1);
+
+//mask by ndwi values
+var mask2 = function (image){
+return image.updateMask(image.select('ndwi_thres'));
+};
+var collection = collection.map(mask2);
+
+//mask by NDI7 values
+var mask3 = function (image){
+return image.updateMask(image.select('NDI7_thres'));
+};
+var collection = collection.map(mask3);
+
+//mask by nbr values
+var mask4 = function (image){
+return image.updateMask(image.select('nbr_thres'));
+};
+var collection = collection.map(mask4);
+
+// Compute the median in each band, in each pixel.
+var median = collection.median();
+var median = median.float();
+
+//print command to check final bands
+print(median);
+
+// Select the red, green and blue bands.
+var rgbVis = {
+  min: 0,
+  max: 3000,
+  bands: ['SR_B3', 'SR_B2', 'SR_B1'],
+};
+
+//display results
+Map.setCenter(-106, 53, 5);
+Map.addLayer(median, rgbVis, 'RGB');
+
+// Export the image, specifying scale and region.
+Export.image.toDrive({
+image: median, //replace with your image name variable
+description: 'sk_ls5_bare_soil_NDI7_ndvi3_NDI70_nbr1_focal3',
+scale: 100,
+maxPixels: 1e12,
+region: polygon, //polygon name that you have drawn at step 1
+folder:'sk_ls5_bare_soil_ndvi3_NDI70_nbr1_focal3',
+crs: "EPSG:26913"
+});
