@@ -86,9 +86,6 @@ var collection_l7 = collection_l7.map(addNDWI);
 var collection_l7 = collection_l7.map(addNDI7);
 var collection_l7 = collection_l7.map(addNBR);
 
-var collection = collection.select(['ndvi', 'ndwi', 'NDI7','nbr']);
-var collection_l7 = collection_l7.select(['ndvi', 'ndwi', 'NDI7','nbr']);
-
 //merge l5 and l7
 var collection=collection.merge(collection_l7);
 
@@ -177,10 +174,10 @@ Map.addLayer(median, rgbVis, 'RGB');
 // Export the image, specifying scale and region.
 Export.image.toDrive({
 image: median, //replace with your image name variable
-description: 'sk_ls5_bare_soil_NDI7_ndvi3_NDI70_nbr1_focal3',
+description: 'sk_ls5_l7_bare_soil_ndvi3_NDI70_nbr1_focal3',
 scale: 100,
 maxPixels: 1e12,
 region: polygon, //polygon name that you have drawn at step 1
-folder:'sk_ls5_bare_soil_ndvi3_NDI70_nbr1_focal3',
+folder:'sk_ls5_l7_bare_soil_ndvi3_NDI70_nbr1_focal3',
 crs: "EPSG:26913"
 });
