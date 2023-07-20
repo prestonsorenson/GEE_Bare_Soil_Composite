@@ -1,0 +1,161 @@
+// Sentinel-2
+
+// Filter an image collection by date and region to make a
+// median pixel composite.
+//
+// See also: ClippedComposite, which crops the output image
+// instead of filtering the input collection.
+
+// Filter to only include images within a defined area.
+var polygon = ee.Geometry.Polygon({
+  coords: [[[-101.40, 49.50], [-101.40, 50.50], [-102.50, 50.50], [-102.50, 49.50]
+  ]],
+  geodesic: false
+});
+
+
+/**
+ * Function to mask clouds using the Sentinel-2 QA band
+ * @param {ee.Image} image Sentinel-2 image
+ * @return {ee.Image} cloud masked Sentinel-2 image
+ */
+function maskS2clouds(image) {
+  var qa = image.select('QA60');
+
+  // Bits 10 and 11 are clouds and cirrus, respectively.
+  var cloudBitMask = 1 << 10;
+  var cirrusBitMask = 1 << 11;
+
+  // Both flags should be set to zero, indicating clear conditions.
+  var mask = qa.bitwiseAnd(cloudBitMask).eq(0)
+      .and(qa.bitwiseAnd(cirrusBitMask).eq(0));
+
+  return image.updateMask(mask).divide(10000);
+}
+
+//fetch sentinel data
+var collection = 
+    ee.ImageCollection('COPERNICUS/S2_SR_HARMONIZED')
+    .filter(ee.Filter.calendarRange(4,10,'month'))
+    .filterBounds(polygon)
+    .filter(ee.Filter.lt('CLOUDY_PIXEL_PERCENTAGE', 20))
+    .map(maskS2clouds);
+
+// Function to calculate and add an NDVI band
+var addNDVI = function(image) {
+return image.addBands(image.normalizedDifference(['B8', 'B4']).rename('ndvi'));
+};
+
+// Function to calculate and add an NDWI band
+var addNDWI = function(image) {
+return image.addBands(image.normalizedDifference(['B3', 'B8']).rename('ndwi'));
+};
+
+// Function to calculate and add an NDI7 band
+var addNDI7 = function(image) {
+return image.addBands(image.normalizedDifference(['B8', 'B12']).rename('NDI7'));
+};
+
+// Function to calculate and add an NBR2 band
+var addNBR = function(image) {
+return image.addBands(image.normalizedDifference(['B11', 'B12']).rename('nbr'));
+};
+
+var collection = collection.map(addNDVI);
+var collection = collection.map(addNDWI);
+var collection = collection.map(addNDI7);
+var collection = collection.map(addNBR);
+
+
+print(collection);
+
+//fuction to calculate ndvi values
+var ndviThres = function(image) {
+  // THRESHOLD
+  // if NDVI less or equal to 0.3 => 1 else 0
+  var thres = image.select(['ndvi']).lte(0.3).rename('ndvi_thres');
+  return image.addBands(thres);
+};
+
+//function to calculate ndwi values
+var ndwiThres = function(image) {
+  // THRESHOLD
+  // if nbr less or equal to 0.1 => 1 else 0
+  var thres = image.select(['ndwi']).lte(0.5).rename('ndwi_thres');
+  return image.addBands(thres);
+};
+
+//function to calculate NDI7 values
+var NDI7Thres = function(image) {
+  // THRESHOLD
+  // if nbr less or equal to 0.9 => 1 else 0
+  var thres = image.select(['NDI7']).lte(0).rename('NDI7_thres');
+  return image.addBands(thres);
+};
+
+//function to calculate nbr values
+var nbrThres = function(image) {
+  // THRESHOLD
+  // if nbr less or equal to 0.9 => 1 else 0
+  var thres = image.select(['nbr']).lte(0.1).rename('nbr_thres');
+  return image.addBands(thres);
+};
+
+//add four band ratios
+var collection = collection.map(ndviThres);
+var collection = collection.map(ndwiThres);
+var collection = collection.map(NDI7Thres);
+var collection = collection.map(nbrThres);
+
+//mask by ndvi values
+var mask1 = function (image){
+return image.updateMask(image.select('ndvi_thres'));
+};
+var collection = collection.map(mask1);
+
+//mask by ndwi values
+var mask2 = function (image){
+return image.updateMask(image.select('ndwi_thres'));
+};
+var collection = collection.map(mask2);
+
+//mask by NDI7 values
+var mask3 = function (image){
+return image.updateMask(image.select('NDI7_thres'));
+};
+var collection = collection.map(mask3);
+
+//mask by nbr values
+var mask4 = function (image){
+return image.updateMask(image.select('nbr_thres'));
+};
+var collection = collection.map(mask4);
+
+// Compute the median in each band, in each pixel.
+var median = collection.median();
+var median = median.float();
+
+//print command to check final bands
+print(median);
+
+// Select the red, green and blue bands.
+var rgbVis = {
+  min: 0,
+  max: 20000,
+  bands: ['B4', 'B3', 'B2'],
+};
+
+//display results
+Map.setCenter(-106, 53, 5);
+Map.addLayer(median, rgbVis, 'RGB');
+
+// Export the image, specifying scale and region.
+Export.image.toDrive({
+image: median, //replace with your image name variable
+description: 'hgv_sen2_bare_soil_2017_2022',
+scale: 10,
+maxPixels: 1e12,
+region: polygon, //polygon name that you have drawn at step 1
+folder:'hgv_sen2_bare_soil_2017_2022',
+crs: "EPSG:26913"
+});
